@@ -1,0 +1,44 @@
+[
+  {
+    "id":"userID",
+    "type":"text",
+    "label":"User Name",
+    "default":"",
+    "secure":"true"
+  },
+  {
+    "id":"password",
+    "type":"text",
+    "option":"hidden",
+    "label":"Password",
+    "default":"",
+    "secure":"true"
+  },
+  {
+    "id":"itemsPerPage",
+    "type":"text",
+    "label":"Maximum items per page",
+    "default":"100",
+    "secure":"false"
+  },
+  {
+    "id": "youtube_fmt",
+    "type": "enum",
+    "label": "Preferred YouTube video quality",
+    "values": [
+        "Standard",
+        "Medium",
+        "High",
+        "720p",
+        "1080p"
+    ],
+    "default": "1080p" 
+  },
+  {
+    "id":"hd",
+    "type":"bool",
+    "label":"Play Vimeo videos in HD",
+    "default":"true"
+  }
+
+]

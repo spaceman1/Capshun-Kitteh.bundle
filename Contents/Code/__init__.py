@@ -1,149 +1,289 @@
-from PMS import *
-from PMS.Objects import *
-from PMS.Shortcuts import *
-import urlparse
+import re
+import urllib2
+import platform
 
-PLUGIN_PREFIX = "/photos/icanhascheezburger"
-CACHE_TIME = CACHE_1HOUR
-
+YOUTUBE_VIDEO_FORMATS = ['Standard', 'Medium', 'High', '720p', '1080p']
+YOUTUBE_FMT = [34, 18, 35, 22, 37]
+USER_AGENT = 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.6; en-US; rv:1.9.2.12) Gecko/20101026 Firefox/3.6.12'
+VIMEO_URL = 'http://www.vimeo.com/'
+CHEEZBURGER_URL = 'http://cheezburger.com'
 TEXT_PAGES = ['Crazy Things Parents Say', 'Learn From My Fail', 'It Made My Day']
-DIR2_PAGES = ['The Daily What']
-DIR3_PAGES = ['Lovely Listing', 'Once Upon A Win', 'Epicute', 'Failbook', 'Totally Looks Like', 'The Daily What', 'Daily Squee', 'Must Have Cute']
-UNSUPPORTED = ['Bag of Misfits', u'Se\xf1or Gif']
 
-####################################################################################################
+# TODO: Fix Vimeo Video playback
+# TODO: Check FavesMenu works with large number of faves (may need to add /start/count to end of url)
+# Known Issue: videos don't show up in faves (blame:cheezburger api)
 
 def Start():
-  Plugin.AddPrefixHandler(PLUGIN_PREFIX, MainMenu, L('I CAN HAS CHEEZBURGER'), 'icon-default.jpg', 'art-default.jpg')
-  Plugin.AddViewGroup("Details", viewMode="InfoList", mediaType="items")
-  Plugin.AddViewGroup("Pictures", viewMode="Pictures", mediaType="photos")
-  MediaContainer.title1 = L('I CAN HAS CHEEZBURGER')
-  MediaContainer.art = R('art-default.jpg')
-  HTTP.CacheTime = CACHE_TIME
-  
-####################################################################################################      
-  
-def MainMenu():
-  dir = MediaContainer(art=R('art-default.jpg'), title1="I CAN HAS CHEEZEBURGER?", viewGroup='Details')
-  i = 0
-  for item in XML.ElementFromURL('http://cheezburger.com/sites/', True).xpath('//div[@class="h1Impact"]')[:-1]:
-    title = item.text
-    dir.Append(Function(DirectoryItem(SiteMenu, title=title, thumb=R('icon-default.jpg')), index=i))
-    i += 1
-  return dir
-  
-def getSiteData(items, dir):
-  url = items[0].xpath('./a')[0].get('href')
-  thumb = items[0].xpath('./a/img')[0].get('src')
-  title = items[1].xpath('./span/a')[0].text
-  subtitle = XML.StringFromElement(items[1]).split('<br>')[1]
-  Log(repr(title))
-  if title in TEXT_PAGES:
-    hnd = TxtMenu
-  elif title in DIR2_PAGES:
-    hnd = DirMenu2
-  elif title in DIR3_PAGES:
-    hnd = DirMenu3
-  elif title in UNSUPPORTED:
-    return
-  else:
-    hnd = DirMenu
-  dir.Append(Function(DirectoryItem(hnd, title=title, thumb=thumb, subtitle=subtitle), url=url, dirTitle=title))
-  
-def SiteMenu(sender, index):
-  dir = MediaContainer(art=R('art-default.jpg'), title1="I CAN HAS CHEEZEBURGER", title2=sender.itemTitle, viewGroup='Details')
-  page = XML.ElementFromURL('http://cheezburger.com/sites/', True)
-  rows = page.xpath('//div[@class="h1Impact"]')[index].xpath('./ancestor::tr/following-sibling::tr')
-  for row in rows:
-    items = row.xpath('./td')
-    if len(items) == 1:
-      break
-    getSiteData(items[0:2], dir)
-    if len(items) == 4:
-      getSiteData(items[2:], dir)
-      
-#      dir.Append(Function(DirectoryItem(hnd, title=title, subtitle=subtitle, thumb=R('icon-default.jpg')), url=url, dirTitle=title))
-  return dir
-    
-def DirMenu(url, dirTitle, isBot=False, sender=None):
-  dir = MediaContainer(art=R("art-default.jpg"), viewGroup="Pictures", title2=dirTitle)
-  for item in XML.ElementFromURL(url, True).xpath('//p[starts-with(@class, "mine_asset")]'):
-    try:
-      thumb = item.xpath('./img')[0].get('src')
-    except:
-      continue
-    title = item.xpath('./following-sibling::p')[0].text
-    dir.Append(PhotoItem(thumb, title=title, thumb=thumb))
-  nexts = XML.ElementFromURL(url, True).xpath('//div[@class="navigation"]//a[starts-with(text(), "Next")]')
-  if len(nexts) != 0:
-    dir.Append(Function(DirectoryItem(DirMenu, title='Moar', thumb=R('icon-next.png')), url=nexts[0].get('href'), dirTitle=dirTitle))
-  return dir
+	Plugin.AddPrefixHandler('/photos/capshunkitteh', PhotoMenu, L('Capshun Kitteh'), 'icon-default.png', 'art-default.jpg')
+	Plugin.AddPrefixHandler('/video/capshunkitteh', VideoMenu, L('Capshun Kitteh'), 'icon-default.png', 'art-default.jpg')
+	Plugin.AddViewGroup("Details", viewMode="InfoList", mediaType="items")
+	Plugin.AddViewGroup("_List", viewMode="List", mediaType="items")
+	MediaContainer.title1 = 'Capshun Kitteh'
+	MediaContainer.viewGroup = '_List'
+	DirectoryItem.thumb = R('icon-default.png')
+	DirectoryItem.art = R('art-default.jpg')
+	PhotoItem.art = R('art-default.jpg')
+	VideoItem.art = R('art-default.jpg')
+	PrefsItem.art = R('art-default.jpg')
+	authorise(getAuthToken())
+#	HTTP.Headers['User-Agent'] = USER_AGENT
 
-def DirMenu2(url, dirTitle, isBot=False, sender=None):
-  dir = MediaContainer(art=R("art-default.jpg"), viewGroup="Pictures", title2=dirTitle)
-  for item in XML.ElementFromURL(url, True).xpath('//div[@class="post"]'):
-    try:
-      thumb = item.xpath('.//div[@class="photo"]/img')[0].get('src')
-    except:
-      thumb = ''
-    try:
-      title = item.xpath('.//div[@class="caption"]//strong')[0].text
-    except:
-      title = ' '
-    try:
-      summary = String.StripTags(XML.StringFromElement(item.xpath('./div[@class="caption"]')[0]))
-    except:
-      summary = ''
-    if thumb != '':
-      Log(thumb)
-      dir.Append(Function(PhotoItem(NoMenu, title=title, thumb=thumb)))
-  nexts = XML.ElementFromURL(url, True).xpath('//div[@id="footer"]//a[starts-with(text(), "Next")]')
-  if len(nexts) != 0:
-    nextURL = urlparse.urljoin(url, nexts[0].get('href'))
-    dir.Append(Function(DirectoryItem(DirMenu2, title='Moar', thumb=R('icon-next.png')), url=nextURL, dirTitle=dirTitle))
-  return dir
+def ValidatePrefs():
+	try:
+		int(Prefs['itemsPerPage'])
+	except:
+		return False
+	
+#######################################################################################	
 
-def DirMenu3(url, dirTitle, isBot=False, sender=None):
-  dir = MediaContainer(art=R("art-default.jpg"), viewGroup="Pictures", title2=dirTitle)
-  for item in XML.ElementFromURL(url, True).xpath('//div[@class="post"]'):
-    thumbs = item.xpath('.//div[@class="snap_preview"]//img')
-    if len(thumbs) == 0:
-      continue
-    title = item.xpath('./h2/a')[0].text
-    if len(thumbs) > 1:
-      i = 1
-      for thumb in thumbs:
-        parent = thumb.xpath('./parent::a')
-        src = thumb.get('src')
-        if len(parent) != 0 and parent[0].get('href').endswith('/Trophies') or thumb.get('class') == 'content-avatar':
-          continue
-        dir.Append(PhotoItem(src, title=title + ' %i' % i, thumb=src))
-        i += 1
-    else:
-      thumb = thumbs[0].get('src')
-      dir.Append(PhotoItem(thumb, title=title, thumb=thumb))
-  nexts = XML.ElementFromURL(url, True).xpath('//div[@class="navigation"]//a[starts-with(text(), "Next")]')
-  if len(nexts) != 0:
-    dir.Append(Function(DirectoryItem(DirMenu3, title='Moar', thumb=R('icon-next.png')), url=nexts[0].get('href'), dirTitle=dirTitle))
-  return dir
+def getXMLFields(element):
+	d = dict()
+	for node in element.xpath('./*'):
+		d[node.tag] = node.text
+	return d
 
+def unique(items, key=None):
+	uniqueVals = set()
+	for item in items:
+		val = key(item) if (key) else item
+		uniqueVals.add(val)
+	return uniqueVals
 
-def TxtMenu(url, dirTitle, sender=None):
-  dir = MediaContainer(art="art-default.jpg", viewGroup="Details", title2=dirTitle)
-  for item in XML.ElementFromURL(url, True).xpath('//div[@class = "post"]'):
-    title = item.xpath('./h2/a')[0].text
-    text = unicode(String.StripTags(XML.StringFromElement(item.xpath('.//blockquote')[0])))
-    cleanText = ''
-    for c in text:
-      if ord(c) == 226:
-        cleanText += "'"
-      elif ord(c) < 128:
-        cleanText += c
-    dir.Append(Function(DirectoryItem(NoMenu, title=title, summary=cleanText, thumb=R('icon-default.jpg'))))
-  nexts = XML.ElementFromURL(url, True).xpath('//div[@class="navigation"]//a[starts-with(text(), "Next")]')
-  if len(nexts) != 0:
-    dir.Append(Function(DirectoryItem(TxtMenu, title='Moar', thumb=R('icon-next.png')), url=nexts[0].get('href'), dirTitle=dirTitle))
-  return dir
-  
-def NoMenu(sender):
-	pass
+#######################################################################################
+
+def AddToFavorites(sender, key):
+	#Log(key)
+	Helper.Run('fave', '-a', key, Dict['token'])
+
+def RemoveFromFavorites(sender, key):
+	Helper.Run('fave', '-r', key, Dict['token'])
+	
+
+#######################################################################################
+
+def getAuthToken():
+	token = None
+	try:
+		token = Dict['token']
+	except:
+		pass
+	if not token:
+		token = Helper.Run('fave')
+		Dict['token'] = token
+	#Log(token)
+	return token
+
+def authorise(token):
+	if not Prefs['userID'] or not Prefs['password']:
+		return None
+	# Log-in
+	Log(HTTP.Request(CHEEZBURGER_URL + '/Account/SimpleLogin', values={'email':Prefs['userID'], 'password':Prefs['password']}))
+	#Log('Cookies: ' + HTTP.GetCookiesForURL(CHEEZBURGER_URL+ '/'))
+	
+	# Simulate Browser Click
+	form = HTML.ElementFromURL(CHEEZBURGER_URL + '/AuthorizeClient.aspx?token=' + token).xpath('//form[@name="aspnetForm"]')[0]
+	url = CHEEZBURGER_URL + form.get('action')
+	values = dict()
+	for input in form.xpath('.//input'):
+		values[input.get('name')] = input.get('value')
+	HTTP.Request(url, values=values)
+
+#######################################################################################
+def PhotoMenu():
+	return MainMenu('Image')
+
+def VideoMenu():
+	return MainMenu('Video')
+
+def getSites(condition):
+	sites = list()
+	for site in XML.ElementFromURL('http://api.cheezburger.com/xml/site').xpath('//Site'):
+		siteDict = getXMLFields(site) 
+		if condition(siteDict) and siteDict['SiteCategory'] != 'STORE & CO.':
+			sites.append(siteDict)
+	return sites
+
+def MainMenu(assetType):
+	dir = MediaContainer()
+	dir.Append(Function(DirectoryItem(CategoriesMenu, title='Categories', thumb=S('Book1.png')), assetType=assetType))
+	dir.Append(Function(DirectoryItem(AllSitesMenu, title='All Sites', thumb=S('Book2.png')), assetType=assetType))
+	dir.Append(Function(DirectoryItem(ConditionalMenu, title='New Sites', thumb=S('FlagGreen.png')), tag='IsNew', assetType=assetType))
+	dir.Append(Function(DirectoryItem(ConditionalMenu, title='Featured Sites', thumb=S('FlagRed.png')), tag='IsFeatureSite', assetType=assetType))
+	
+	if assetType == 'Image' and Prefs['userID'] != 'None' and Prefs['password'] != 'None':
+		dir.Append(Function(DirectoryItem(FavesMenu, title=L('My Favorites'), thumb=S('Favorite.png')), assetType=assetType))
+	dir.Append(Function(DirectoryItem(ConditionalMenu, title='NSFW', thumb=S('Popular.png')), tag='IsNSFW', assetType=assetType))
+	dir.Append(PrefsItem(title='Preferences', thumb=S('Gear.png')))
+	return dir
+
+def ConditionalMenu(sender, tag, assetType):
+	dir = MediaContainer(title1=sender.itemTitle)
+	for site in getSites(lambda site:site[tag] == 'true'):
+			dir.Append(Function(DirectoryItem(SiteMenu, title=site['Name'], summary=site['Description'], thumb=site['SquareLogoUrl']), assetType=assetType, baseURL=site['SiteId']))
+	return dir
+	
+def FavesMenu(sender, assetType):
+	cm = ContextMenu(includeStandardItems=False)
+	cm.Append(Function(DirectoryItem(RemoveFromFavorites, title=L('Remove from favorites'))))
+	dir = MediaContainer(title2=sender.itemTitle, noCache=True)
+	if platform.version().startswith('Darwin Kernel Version 10.6.'):
+		dir.contextMenu = cm
+	
+	try:
+		userID = Prefs['userID']
+	except:
+		return MessageContainer('Not logged in', 'You need to specify a username in your preferences')
+	for lol in XML.ElementFromURL('http://api.cheezburger.com/xml/user/%s/favorite/lol' % userID).xpath('//Lol'):
+		itemDict = getXMLFields(lol)
+		dir.Append(PhotoItem(itemDict['LolImageUrl'], title=itemDict['Title'], thumb=itemDict['ThumbnailImageUrl'], summary=itemDict.get('FullText', ''), contextKey=itemDict['LolId'], contextArgs={}))
+	return dir
+
+def AllSitesMenu(sender, assetType):
+	sites = getSites(lambda x: True)
+	dir = MediaContainer(title2='All Sites')
+	for site in sorted(sites, key=lambda site: site['Name']):
+		dir.Append(Function(DirectoryItem(SiteMenu, title=site['Name'], thumb=site['SquareLogoUrl'], summary=['Description']), assetType=assetType, baseURL=site['SiteId']))
+	return dir
+	
+#######################################################################################
+
+def CategoriesMenu(sender, assetType):
+	sites = getSites(lambda x: True)
+	categories = unique(sites, lambda s: s['SiteCategory'])
+	dir = MediaContainer()
+	
+	for category in categories:
+		matchingSites = [site for site in sites if (site['SiteCategory'] == category)]
+		dir.Append(Function(DirectoryItem(CategoryMenu, title=category, thumb=matchingSites[0]['SquareLogoUrl']), assetType=assetType, sites=matchingSites))
+	return dir
+
+def CategoryMenu(sender, assetType, sites):
+	dir = MediaContainer(title2=sender.itemTitle)
+	for site in sites:
+		dir.Append(Function(DirectoryItem(SiteMenu, title=site['Name'], summary=site['Description'], thumb=site['SquareLogoUrl']), assetType=assetType, baseURL=site['SiteId']))
+	return dir
+
+def SiteMenu(sender, baseURL, assetType, pageNum=1, title2=None, query=None):
+	itemsPerPage = int(Prefs['itemsPerPage'])
+	
+	dirTitle2 = title2 if (title2) else sender.itemTitle
+	
+	dir = MediaContainer(title2=dirTitle2)
+	
+	if Prefs['userID'] != 'None' and Prefs['password'] != 'None' and platform.version().startswith('Darwin Kernel Version 10.6.'):
+		cm = ContextMenu(includeStandardItems=False)
+		cm.Append(Function(DirectoryItem(AddToFavorites, title=L('Add to favorites'))))
+		dir.contextMenu = cm
+	
+	if dirTitle2 in TEXT_PAGES:
+		dir.viewGroup = 'Details'
+	
+	if assetType == 'Video':
+		youTubeCookies = HTTP.GetCookiesForURL('http://www.youtube.com/')
+		#vimeoCookies = HTTP.GetCookiesForURL(VIMEO_URL)
+		#if not youTubeCookies: youTubeCookies = ''
+		#if not vimeoCookies: vimeoCookies = ''
+		dir.httpCookies = youTubeCookies #+ ';' + vimeoCookies
+		#Log(dir.httpCookies)
+	
+	items = XML.ElementFromURL(baseURL + '/featured/%i/%i' % (pageNum, itemsPerPage)).xpath('//Asset')
+	for item in items:
+		itemDict = getXMLFields(item)
+		itemAssetType = itemDict['AssetType']
+		if itemAssetType != assetType and itemAssetType != 'Text': continue
+		
+		title = itemDict.get('Title', 'Untitled')
+		thumb = itemDict.get('ImageUrl', sender.thumb)
+		key = itemDict.get('ContentUrl', sender.thumb)
+		summary = itemDict.get('Description', '')
+		contextKey = itemDict['AssetId']
+		contextArgs = {}
+		
+		if itemAssetType == 'Image':
+			dir.Append(PhotoItem(key, title=title, thumb=thumb, summary=summary, contextKey=contextKey, contextArgs=contextArgs))
+		elif itemAssetType == 'Video' and itemDict['VideoType'] == 'YouTube':
+			dir.Append(Function(VideoItem(PlayYouTubeVideo, title=title, thumb=thumb, summary=summary, contextKey=contextKey, contextArgs=contextArgs), url=itemDict['ContentUrl']))
+		#elif itemAssetType == 'Video' and itemDict['VideoType'] == 'Vimeo':
+			#id = key.split('?')[0].split('/')[-1]
+			#dir.Append(Function(VideoItem(PlayVimeoVideo, title=title, thumb=thumb, summary=summary, contextKey=contextKey, contextArgs=contextArgs), url=itemDict['ContentUrl']))
+		elif itemAssetType == 'Text':
+			dir.Append(PhotoItem(sender.thumb, title=title, thumb=thumb, summary=itemDict['FullText']))
+		else:
+			Log('Unknown type: '+ itemDict['AssetType'])
+	
+	#if len(dir) == 0:
+	#	return SiteMenu(sender, baseURL, assetType, pageNum=pageNum + itemsPerPage, title2=dirTitle2)
+	if len(items) == itemsPerPage:
+		dir.Append(Function(DirectoryItem(SiteMenu, title='Moar', thumb=sender.thumb), baseURL=baseURL, assetType=assetType, pageNum=pageNum + itemsPerPage, title2=dirTitle2))
+	return dir
+
+#######################################################################################
+import urllib2, httplib
+class SmartRedirectHandler(urllib2.HTTPRedirectHandler):     
+    def http_error_301(self, req, fp, code, msg, headers):
+        result = urllib2.HTTPRedirectHandler.http_error_301( 
+            self, req, fp, code, msg, headers)              
+        result.status = code                                 
+        return result                                       
+
+    def http_error_302(self, req, fp, code, msg, headers):   
+        result = urllib2.HTTPRedirectHandler.http_error_302(
+            self, req, fp, code, msg, headers)              
+        result.status = code                                
+        return result
+
+def PlayVimeoVideo(sender, url):
+	# Intertube records
+	id = url.split('?')[0].split('/')[-1]
+	Log(id)
+	Log(url)
+	headers = {'User-agent': 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_5; en-us) AppleWebKit/533.18.1 (KHTML, like Gecko) Version/5.0.2 Safari/533.18.5', 'Cookie' : HTTP.GetCookiesForURL(VIMEO_URL) }
+	video = HTTP.Request(url, cacheTime=0, headers=headers).content
+
+	m1 = re.search('"hd":([0-9])', video)
+	m2 = re.search('"signature":"([0-9a-f]+)","timestamp":([0-9]+)', video)
+	
+	if m1 and m2:
+		hd = int(m1.groups()[0])
+		if Prefs['hd'] == True and hd == True:
+			format = 'hd'
+		else:
+			format = 'sd'
+		Log(m2.groups())
+		(sig, time) = m2.groups()
+		headers['Referer'] = 'http://vimeo.com/%s' % id
+		#redirect = 'http://player.vimeo.com/play_redirect?clip_id=%s&sig=%s&time=%s&quality=%s&codecs=H264,VP8,VP6&type=moogaloop_local&embed_location=' % (id, sig, time, format)
+		quality = 'hd' if Prefs['hd'] else 'sd'
+		redirect = 'http://player.vimeo.com/play_redirect?quality=%s&codecs=h264&clip_id=%s&time=%s&sig=%s&type=html5_desktop_local' % (quality, id, time, sig)
+		Log(redirect)
+		return Redirect(redirect)
+
+# Based on YouTube Plug-in
+def PlayYouTubeVideo(sender, url):
+	yt_page = HTTP.Request(url, cacheTime=1).content
+	#yt_page = HTTP.Request(YOUTUBE_VIDEO_PAGE % (video_id), cacheTime=1).content
+
+	fmt_url_map = re.findall('"fmt_url_map".+?"([^"]+)', yt_page)[0]
+	fmt_url_map = fmt_url_map.replace('\/', '/').split(',')
+
+	fmts = []
+	fmts_info = {}
+
+	for f in fmt_url_map:
+		(fmt, url) = f.split('|')
+		fmts.append(fmt)
+		fmts_info[str(fmt)] = url
+
+	index = YOUTUBE_VIDEO_FORMATS.index(Prefs['youtube_fmt'])
+	if YOUTUBE_FMT[index] in fmts:
+		fmt = YOUTUBE_FMT[index]
+	else:
+		for i in reversed( range(0, index+1) ):
+			if str(YOUTUBE_FMT[i]) in fmts:
+				fmt = YOUTUBE_FMT[i]
+				break
+			else:
+				fmt = 5
+
+	url = fmts_info[str(fmt)]
+	return Redirect(url)
