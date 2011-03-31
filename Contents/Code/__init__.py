@@ -285,5 +285,5 @@ def PlayYouTubeVideo(sender, url):
 			else:
 				fmt = 5
 
-	url = fmts_info[str(fmt)]
+	url = fmts_info[str(fmt)].replace('\\u0026', '&')
 	return Redirect(url)
