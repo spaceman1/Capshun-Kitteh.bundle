@@ -210,11 +210,8 @@ def SiteMenu(sender, baseURL, assetType, pageNum=1, title2=None, query=None):
 			dir.Append(PhotoItem(sender.thumb, title=title, thumb=thumb, summary=itemDict['FullText']))
 		else:
 			Log('Unknown type: '+ itemDict['AssetType'])
-	
-	#if len(dir) == 0:
-	#	return SiteMenu(sender, baseURL, assetType, pageNum=pageNum + itemsPerPage, title2=dirTitle2)
-	if len(items) == itemsPerPage:
-		dir.Append(Function(DirectoryItem(SiteMenu, title='Moar', thumb=sender.thumb), baseURL=baseURL, assetType=assetType, pageNum=pageNum + itemsPerPage, title2=dirTitle2))
+
+	dir.Append(Function(DirectoryItem(SiteMenu, title='Moar', thumb=sender.thumb), baseURL=baseURL, assetType=assetType, pageNum=pageNum + itemsPerPage, title2=dirTitle2))
 	return dir
 
 #######################################################################################
