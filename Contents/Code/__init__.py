@@ -108,7 +108,8 @@ def MainMenu(assetType):
 	dir.Append(Function(DirectoryItem(CategoriesMenu, title='Categories', thumb=S('Book1.png')), assetType=assetType))
 	dir.Append(Function(DirectoryItem(AllSitesMenu, title='All Sites', thumb=S('Book2.png')), assetType=assetType))
 	dir.Append(Function(DirectoryItem(ConditionalMenu, title='New Sites', thumb=S('FlagGreen.png')), tag='IsNew', assetType=assetType))
-	dir.Append(Function(DirectoryItem(ConditionalMenu, title='Featured Sites', thumb=S('FlagRed.png')), tag='IsFeatureSite', assetType=assetType))
+	if len(getSites(lambda site:site['IsFeatureSite'] == 'true')):
+		dir.Append(Function(DirectoryItem(ConditionalMenu, title='Featured Sites', thumb=S('FlagRed.png')), tag='IsFeatureSite', assetType=assetType))
 	if assetType == 'Image' and Prefs['userID'] and Prefs['password']:
 		dir.Append(Function(DirectoryItem(FavesMenu, title=L('My Favorites'), thumb=S('Favorite.png')), assetType=assetType))
 	dir.Append(Function(DirectoryItem(ConditionalMenu, title='NSFW', thumb=S('Popular.png')), tag='IsNSFW', assetType=assetType))
